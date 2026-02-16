@@ -134,7 +134,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     votes = load_votes()
 
     if query.data == "begin":
-        if user_id in votes:
+        if user_id in votes and votes[user_id]["answers"]:
             await query.edit_message_text(
                 "⚠️ You have already voted.\nUse /revote to modify your answers."
             )
@@ -203,14 +203,15 @@ async def revote(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("You have not voted yet.")
         return
 
-    votes[user_id]["answers"] = {}
+    # FULLY remove previous vote
+    del votes[user_id]
     save_votes(votes)
 
     keyboard = [[InlineKeyboardButton("🗳 Begin Voting Again", callback_data="begin")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        "Your previous vote has been cleared. You may vote again.",
+        "Your previous vote has been completely cleared. You may vote again.",
         reply_markup=reply_markup
     )
 
@@ -316,3 +317,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
