@@ -227,9 +227,11 @@ async def results(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += "\n"
 
     message += "👥 WHO VOTED:\n\n"
-
+    
     for voter in votes.values():
         message += f"{voter['name']}\n"
+        for q, ans in voter["answers"].items():
+            message += f"  {q}: {ans}\n"
 
     await update.message.reply_text(message)
 
@@ -308,3 +310,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
