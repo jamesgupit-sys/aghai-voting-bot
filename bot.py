@@ -1,7 +1,7 @@
 import json
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -21,8 +21,6 @@ ADMIN_IDS = [8324041197, 1037677076]
 DATA_FILE = "votes.json"
 
 VOTING_OPEN = True
-DEADLINE = None
-
 REMINDER_INTERVAL_SECONDS = 86400  # Once per day
 
 # ==========================
@@ -73,7 +71,7 @@ OPTIONS = {
 }
 
 # ==========================
-# STORAGE FUNCTIONS
+# STORAGE
 # ==========================
 
 def load_votes():
@@ -87,32 +85,31 @@ def save_votes(data):
         json.dump(data, f, indent=4)
 
 # ==========================
-# START COMMAND
+# START
 # ==========================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 
-    message = f"""
-Welcome {user.first_name} 👋
+    keyboard = [[InlineKeyboardButton("🗳 Begin Voting", callback_data="begin")]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        f"""Welcome {user.first_name} 👋
 
 🗳 AGHAI Official Voting Portal
 
 Instructions:
 • Tap "Begin Voting"
 • You may vote only once
-• You may use /revote to modify
-• Voting deadline applies
+• You may change your vote before deadline
 • Only admins can view results
-
-"""
-    keyboard = [[InlineKeyboardButton("🗳 Begin Voting", callback_data="begin")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await update.message.reply_text(message, reply_markup=reply_markup)
+""",
+        reply_markup=reply_markup
+    )
 
 # ==========================
-# BEGIN VOTING
+# BUTTON HANDLER
 # ==========================
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -120,41 +117,37 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     query = update.callback_query
     await query.answer()
-
     user_id = str(query.from_user.id)
+    votes = load_votes()
+
+    # Auto deadline check (March 1, 2026)
+    if datetime.now() >= datetime(2026, 3, 1, 0, 0):
+        VOTING_OPEN = False
 
     if not VOTING_OPEN:
         await query.edit_message_text("Voting is currently CLOSED.")
         return
 
-    if DEADLINE and datetime.now() >= DEADLINE:
-        await query.edit_message_text("Voting deadline has passed.")
-        return
-
-    votes = load_votes()
-# ==========================================
-    # ✅ ADD THE REVOTE BUTTON BLOCK RIGHT HERE
-    # ==========================================
+    # ================= REVOTE BUTTON =================
     if query.data == "revote_button":
         if user_id in votes:
             del votes[user_id]
             save_votes(votes)
 
         keyboard = [[InlineKeyboardButton("🗳 Begin Voting Again", callback_data="begin")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
         await query.edit_message_text(
             "Your previous vote has been cleared.\n\nClick below to vote again.",
-            reply_markup=reply_markup
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
-    # ==========================================
 
-    # Existing begin block
+    # ================= BEGIN =================
     if query.data == "begin":
         if user_id in votes and votes[user_id]["answers"]:
+            keyboard = [[InlineKeyboardButton("🔁 Change My Vote", callback_data="revote_button")]]
             await query.edit_message_text(
-                "⚠️ You have already voted.\nUse the Revote button to change your vote."
+                "⚠️ You have already voted.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
             return
 
@@ -164,38 +157,39 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
         save_votes(votes)
 
-        await ask_question(query, context, "q1")
+        await ask_question(query, "q1")
         return
 
-    # Answer handling
+    # ================= ANSWERS =================
     q_key, answer = query.data.split("|")
 
-    votes = load_votes()
     votes[user_id]["answers"][q_key] = answer
     save_votes(votes)
 
     next_q = get_next_question(q_key)
 
     if next_q:
-        await ask_question(query, context, next_q)
+        await ask_question(query, next_q)
     else:
-        await query.edit_message_text("✅ Thank you. Your vote has been recorded.")
+        keyboard = [[InlineKeyboardButton("🔁 Change My Vote", callback_data="revote_button")]]
+        await query.edit_message_text(
+            "✅ Thank you. Your vote has been recorded.\n\n"
+            "If you change your mind before the deadline, click below:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
 # ==========================
 # ASK QUESTION
 # ==========================
 
-async def ask_question(query, context, q_key):
-    keyboard = []
-    for opt in OPTIONS[q_key]:
-        keyboard.append([
-            InlineKeyboardButton(opt, callback_data=f"{q_key}|{opt}")
-        ])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
+async def ask_question(query, q_key):
+    keyboard = [
+        [InlineKeyboardButton(opt, callback_data=f"{q_key}|{opt}")]
+        for opt in OPTIONS[q_key]
+    ]
     await query.edit_message_text(
         QUESTIONS[q_key],
-        reply_markup=reply_markup
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 # ==========================
@@ -210,28 +204,7 @@ def get_next_question(current):
     return None
 
 # ==========================
-# REVOTE
-# ==========================
-
-async def revote(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.effective_user.id)
-    votes = load_votes()
-
-    if user_id not in votes:
-        await update.message.reply_text("You have not voted yet.")
-        return
-
-    # FULLY remove previous vote
-    del votes[user_id]
-    save_votes(votes)
-
-    await update.message.reply_text(
-        "✅ Your previous vote has been removed.\n\nUse /start to vote again."
-    )
-
-
-# ==========================
-# RESULTS
+# RESULTS (ADMIN ONLY)
 # ==========================
 
 async def results(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -239,17 +212,11 @@ async def results(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     votes = load_votes()
-
-    summary = {}
-    for q in QUESTIONS:
-        summary[q] = {}
-        for opt in OPTIONS[q]:
-            summary[q][opt] = 0
+    summary = {q: {opt: 0 for opt in OPTIONS[q]} for q in QUESTIONS}
 
     for voter in votes.values():
         for q, ans in voter["answers"].items():
-            if q in summary and ans in summary[q]:
-                summary[q][ans] += 1
+            summary[q][ans] += 1
 
     message = "📊 VOTING SUMMARY\n\n"
 
@@ -262,14 +229,9 @@ async def results(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message += "👥 WHO VOTED:\n\n"
 
     for voter in votes.values():
-        message += f"{voter['name']}:\n"
-        for q, ans in voter["answers"].items():
-            message += f"  {q.upper()}: {ans}\n"
-        message += "\n"
+        message += f"{voter['name']}\n"
 
-    MAX = 4000
-    for i in range(0, len(message), MAX):
-        await update.message.reply_text(message[i:i+MAX])
+    await update.message.reply_text(message)
 
 # ==========================
 # ADMIN COMMANDS
@@ -298,27 +260,16 @@ async def get_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # ==========================
-# REMINDER (ONCE DAILY)
+# REMINDER
 # ==========================
 
 async def reminder(context: ContextTypes.DEFAULT_TYPE):
-    votes = load_votes()
     for admin in ADMIN_IDS:
         await context.bot.send_message(
             chat_id=admin,
             text="Reminder: Voting is ongoing."
         )
 
-# ✅ PLACE AUTO CLOSE HERE
-from datetime import datetime
-
-async def auto_close(context: ContextTypes.DEFAULT_TYPE):
-    now = datetime.now()
-    deadline = datetime(2026, 3, 1, 0, 0)
-
-    global voting_open
-    if now >= deadline:
-        voting_open = False
 # ==========================
 # MAIN
 # ==========================
@@ -327,7 +278,6 @@ def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("revote", revote))
     app.add_handler(CommandHandler("results", results))
     app.add_handler(CommandHandler("openvote", open_vote))
     app.add_handler(CommandHandler("closevote", close_vote))
@@ -336,15 +286,10 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
 
     app.job_queue.run_repeating(reminder, interval=REMINDER_INTERVAL_SECONDS)
-    app.job_queue.run_repeating(auto_close, interval=60)
 
-    # ==========================
-    # ADD THIS SECTION BELOW
-    # ==========================
-
+    # Web server for Render
     import threading
     from flask import Flask
-    import os
 
     def run_web():
         web_app = Flask(__name__)
@@ -358,16 +303,8 @@ def main():
 
     threading.Thread(target=run_web).start()
 
-    # ==========================
-    # END OF ADDED SECTION
-    # ==========================
-
     print("Bot running...")
     app.run_polling()
 
 if __name__ == "__main__":
     main()
-
-
-
-
