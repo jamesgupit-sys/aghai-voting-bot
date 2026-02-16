@@ -225,17 +225,9 @@ async def revote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del votes[user_id]
     save_votes(votes)
 
-    keyboard = [
-    [InlineKeyboardButton("🔁 Change My Vote (Revote)", callback_data="revote_button")]
-]
-
-reply_markup = InlineKeyboardMarkup(keyboard)
-
-await query.edit_message_text(
-    "✅ You have successfully voted!\n\n"
-    "If you change your mind, click the button below to vote again before the deadline.",
-    reply_markup=reply_markup
-)
+    await update.message.reply_text(
+        "✅ Your previous vote has been removed.\n\nUse /start to vote again."
+    )
 
 
 # ==========================
@@ -375,6 +367,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
