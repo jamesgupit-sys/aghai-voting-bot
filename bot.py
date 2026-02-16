@@ -311,10 +311,34 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
 
     app.job_queue.run_repeating(reminder, interval=REMINDER_INTERVAL_SECONDS)
+    # ==========================
+    # ADD THIS SECTION BELOW
+    # ==========================
+
+    import threading
+    from flask import Flask
+    import os
+
+    def run_web():
+        web_app = Flask(__name__)
+
+        @web_app.route("/")
+        def home():
+            return "Aghai Elections Bot is running!"
+
+        port = int(os.environ.get("PORT", 10000))
+        web_app.run(host="0.0.0.0", port=port)
+
+    threading.Thread(target=run_web).start()
+
+    # ==========================
+    # END OF ADDED SECTION
+    # ==========================
 
     print("Bot running...")
     app.run_polling()
 
 if __name__ == "__main__":
     main()
+
 
