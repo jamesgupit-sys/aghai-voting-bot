@@ -132,11 +132,29 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     votes = load_votes()
+# ==========================================
+    # ✅ ADD THE REVOTE BUTTON BLOCK RIGHT HERE
+    # ==========================================
+    if query.data == "revote_button":
+        if user_id in votes:
+            del votes[user_id]
+            save_votes(votes)
 
+        keyboard = [[InlineKeyboardButton("🗳 Begin Voting Again", callback_data="begin")]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await query.edit_message_text(
+            "Your previous vote has been cleared.\n\nClick below to vote again.",
+            reply_markup=reply_markup
+        )
+        return
+    # ==========================================
+
+    # Existing begin block
     if query.data == "begin":
         if user_id in votes and votes[user_id]["answers"]:
             await query.edit_message_text(
-                "⚠️ You have already voted.\nUse /revote to modify your answers."
+                "⚠️ You have already voted.\nUse the Revote button to change your vote."
             )
             return
 
@@ -207,13 +225,18 @@ async def revote(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del votes[user_id]
     save_votes(votes)
 
-    keyboard = [[InlineKeyboardButton("🗳 Begin Voting Again", callback_data="begin")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    keyboard = [
+    [InlineKeyboardButton("🔁 Change My Vote (Revote)", callback_data="revote_button")]
+]
 
-    await update.message.reply_text(
-        "Your previous vote has been completely cleared. You may vote again.",
-        reply_markup=reply_markup
-    )
+reply_markup = InlineKeyboardMarkup(keyboard)
+
+await query.edit_message_text(
+    "✅ You have successfully voted!\n\n"
+    "If you change your mind, click the button below to vote again before the deadline.",
+    reply_markup=reply_markup
+)
+
 
 # ==========================
 # RESULTS
@@ -294,6 +317,16 @@ async def reminder(context: ContextTypes.DEFAULT_TYPE):
             text="Reminder: Voting is ongoing."
         )
 
+# ✅ PLACE AUTO CLOSE HERE
+from datetime import datetime
+
+async def auto_close(context: ContextTypes.DEFAULT_TYPE):
+    now = datetime.now()
+    deadline = datetime(2026, 3, 1, 0, 0)
+
+    global voting_open
+    if now >= deadline:
+        voting_open = False
 # ==========================
 # MAIN
 # ==========================
@@ -304,13 +337,15 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("revote", revote))
     app.add_handler(CommandHandler("results", results))
-    app.add_handler(CommandHandler("open", open_vote))
-    app.add_handler(CommandHandler("close", close_vote))
+    app.add_handler(CommandHandler("openvote", open_vote))
+    app.add_handler(CommandHandler("closevote", close_vote))
     app.add_handler(CommandHandler("clearvotes", clear_votes))
     app.add_handler(CommandHandler("getid", get_id))
     app.add_handler(CallbackQueryHandler(button_handler))
 
     app.job_queue.run_repeating(reminder, interval=REMINDER_INTERVAL_SECONDS)
+    app.job_queue.run_repeating(auto_close, interval=60)
+
     # ==========================
     # ADD THIS SECTION BELOW
     # ==========================
@@ -340,5 +375,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
