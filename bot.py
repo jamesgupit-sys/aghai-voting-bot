@@ -166,9 +166,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await ask_question(query, "q1")
         return
     # ================= PRE-VOTE =================
-    if query.data == "prevote":
+if query.data == "prevote":
     await prevote_start(update, context)  # Call the /prevote conversation
     return
+
     # ================= ANSWERS =================
     q_key, answer = query.data.split("|")
 
@@ -310,10 +311,19 @@ def has_submitted_prevote(user_id: int):
 # --------------------
 async def prevote_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+
     if has_submitted_prevote(user_id):
-        await update.message.reply_text("⚠️ You have already submitted your Pre-Voting Registration.")
+        if update.message:
+            await update.message.reply_text("⚠️ You have already submitted your Pre-Voting Registration.")
+        else:
+            await update.callback_query.message.reply_text("⚠️ You have already submitted your Pre-Voting Registration.")
         return ConversationHandler.END
-    await update.message.reply_text("Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:")
+    
+    if update.message:
+        await update.message.reply_text("Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:")
+    else:
+        await update.callback_query.message.reply_text("Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:")
+
     return FULL_NAME
 
 # --------------------
@@ -472,5 +482,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
