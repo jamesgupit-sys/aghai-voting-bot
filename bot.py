@@ -165,10 +165,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await ask_question(query, "q1")
         return
-   # ================= PRE-VOTE =================
-    if query.data == "prevote":
-        await prevote_start(update, context)
-        return
 
     # ================= ANSWERS =================
     q_key, answer = query.data.split("|")
@@ -313,16 +309,26 @@ async def prevote_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     if has_submitted_prevote(user_id):
-        if update.message:
-            await update.message.reply_text("⚠️ You have already submitted your Pre-Voting Registration.")
+        if update.callback_query:
+            await update.callback_query.answer()
+            await update.callback_query.message.reply_text(
+                "⚠️ You have already submitted your Pre-Voting Registration."
+            )
         else:
-            await update.callback_query.message.reply_text("⚠️ You have already submitted your Pre-Voting Registration.")
+            await update.message.reply_text(
+                "⚠️ You have already submitted your Pre-Voting Registration."
+            )
         return ConversationHandler.END
-    
-    if update.message:
-        await update.message.reply_text("Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:")
+
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text(
+            "Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:"
+        )
     else:
-        await update.callback_query.message.reply_text("Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:")
+        await update.message.reply_text(
+            "Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:"
+        )
 
     return FULL_NAME
 
@@ -428,7 +434,10 @@ async def prevote_declaration(update, context):
 # CONVERSATION HANDLER
 # --------------------
 prevote_conv = ConversationHandler(
-    entry_points=[CommandHandler('prevote', prevote_start)],
+    entry_points=[
+        CommandHandler('prevote', prevote_start),
+        CallbackQueryHandler(prevote_start, pattern="^prevote$")
+    ],
     states={
         FULL_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, prevote_full_name)],
         ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, prevote_address)],
@@ -456,8 +465,8 @@ def main():
     app.add_handler(CommandHandler("closevote", close_vote))
     app.add_handler(CommandHandler("clearvotes", clear_votes))
     app.add_handler(CommandHandler("getid", get_id))
-    app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(prevote_conv)
+    app.add_handler(CallbackQueryHandler(button_handler))
 
     app.job_queue.run_repeating(reminder, interval=REMINDER_INTERVAL_SECONDS)
 
@@ -482,6 +491,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
