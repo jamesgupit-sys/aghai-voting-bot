@@ -2,6 +2,9 @@ import json
 import os
 import logging
 from datetime import datetime
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from telegram.ext import ConversationHandler, MessageHandler, filters
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -91,7 +94,10 @@ def save_votes(data):
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
 
-    keyboard = [[InlineKeyboardButton("🗳 Begin Voting", callback_data="begin")]]
+    keyboard = [
+        [InlineKeyboardButton("🗳 Begin Voting", callback_data="begin")],
+        [InlineKeyboardButton("📝 Pre-Voting Registration", callback_data="prevote")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
@@ -159,7 +165,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await ask_question(query, "q1")
         return
-
+    # ================= PRE-VOTE =================
+    if query.data == "prevote":
+    await prevote_start(update, context)  # Call the /prevote conversation
+    return
     # ================= ANSWERS =================
     q_key, answer = query.data.split("|")
 
@@ -271,6 +280,158 @@ async def reminder(context: ContextTypes.DEFAULT_TYPE):
             chat_id=admin,
             text="Reminder: Voting is ongoing."
         )
+# --------------------
+# GOOGLE SHEETS SETUP
+# --------------------
+scope = ["https://spreadsheets.google.com/feeds",
+         "https://www.googleapis.com/auth/drive"]
+
+# Replace this path with Render secret file path
+creds = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
+gs_client = gspread.authorize(creds)
+prevote_sheet = gs_client.open("AGHAI_PreVoting_Records").worksheet("pre_voting_registration")
+# --------------------
+# CONVERSATION STATES
+# --------------------
+FULL_NAME, ADDRESS, MOBILE, EMAIL, MEMBERSHIP_STATUS, ATTENDANCE, NOMINATION_DECISION, NOMINEE_NAMES, DECLARATION = range(9)
+
+# --------------------
+# HELPER
+# --------------------
+def has_submitted_prevote(user_id: int):
+    records = prevote_sheet.get_all_records()
+    for row in records:
+        if str(row.get("Telegram ID")) == str(user_id):
+            return True
+    return False
+
+# --------------------
+# /prevote START
+# --------------------
+async def prevote_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if has_submitted_prevote(user_id):
+        await update.message.reply_text("⚠️ You have already submitted your Pre-Voting Registration.")
+        return ConversationHandler.END
+    await update.message.reply_text("Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:")
+    return FULL_NAME
+
+# --------------------
+# CONVERSATION HANDLERS
+# --------------------
+async def prevote_full_name(update, context):
+    context.user_data['full_name'] = update.message.text
+    await update.message.reply_text("Enter your Lot Number / Street Address:")
+    return ADDRESS
+
+async def prevote_address(update, context):
+    context.user_data['address'] = update.message.text
+    await update.message.reply_text("Enter your Contact Mobile Number:")
+    return MOBILE
+
+async def prevote_mobile(update, context):
+    context.user_data['mobile'] = update.message.text
+    await update.message.reply_text("Enter your Email Address:")
+    return EMAIL
+
+async def prevote_email(update, context):
+    context.user_data['email'] = update.message.text
+    keyboard = [
+        [InlineKeyboardButton("Registered Owner", callback_data="Registered Owner")],
+        [InlineKeyboardButton("Authorized Assignee", callback_data="Authorized Assignee")]
+    ]
+    await update.message.reply_text("Select your Membership Status:", reply_markup=InlineKeyboardMarkup(keyboard))
+    return MEMBERSHIP_STATUS
+
+async def prevote_membership_status(update, context):
+    query = update.callback_query
+    await query.answer()
+    context.user_data['membership_status'] = query.data
+    keyboard = [
+        [InlineKeyboardButton("Yes, I will attend personally", callback_data="Yes")],
+        [InlineKeyboardButton("I cannot attend but will appoint a proxy", callback_data="Proxy")],
+        [InlineKeyboardButton("Undecided", callback_data="Undecided")]
+    ]
+    await query.edit_message_text("Will you attend the Special Membership Meeting?", reply_markup=InlineKeyboardMarkup(keyboard))
+    return ATTENDANCE
+
+async def prevote_attendance(update, context):
+    query = update.callback_query
+    await query.answer()
+    context.user_data['attendance'] = query.data
+    keyboard = [
+        [InlineKeyboardButton("Yes", callback_data="Yes")],
+        [InlineKeyboardButton("No", callback_data="No")]
+    ]
+    await query.edit_message_text("Do you wish to nominate members for COMELEC?", reply_markup=InlineKeyboardMarkup(keyboard))
+    return NOMINATION_DECISION
+
+async def prevote_nomination_decision(update, context):
+    query = update.callback_query
+    await query.answer()
+    if query.data == "No":
+        context.user_data['nomination_yes_no'] = "No"
+        context.user_data['nominee_names'] = ""
+        return await prevote_declaration_prompt(update, context)
+    context.user_data['nomination_yes_no'] = "Yes"
+    official_names = ["Manny de Leon", "Annabelle Yong", "Conrad Alampay", "Ernie Manansala", "Elvie Guzman"]
+    await query.edit_message_text(
+        f"You may nominate any of the following:\n{', '.join(official_names)}\n\n"
+        "You may also enter additional nominee(s). Enter name(s), separated by commas if multiple:"
+    )
+    return NOMINEE_NAMES
+
+async def prevote_nominee_names(update, context):
+    context.user_data['nominee_names'] = update.message.text
+    return await prevote_declaration_prompt(update, context)
+
+async def prevote_declaration_prompt(update, context):
+    keyboard = [[InlineKeyboardButton("I Agree and Confirm", callback_data="Agree")]]
+    await update.message.reply_text(
+        "“I certify that I am a Member/Assignee in good standing of AGHAI and that the above information is true and correct.”",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return DECLARATION
+
+async def prevote_declaration(update, context):
+    query = update.callback_query
+    await query.answer()
+    context.user_data['declaration_confirmed'] = "YES"
+    user_id = update.effective_user.id
+    prevote_sheet.append_row([
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        user_id,
+        context.user_data['full_name'],
+        context.user_data['address'],
+        context.user_data['mobile'],
+        context.user_data['email'],
+        context.user_data['membership_status'],
+        context.user_data['attendance'],
+        context.user_data.get('nomination_yes_no', "No"),
+        context.user_data.get('nominee_names', ""),
+        context.user_data['declaration_confirmed']
+    ])
+    await query.edit_message_text("✅ Submission Successful!\nThank you for completing your Pre-Voting Registration.")
+    return ConversationHandler.END
+
+# --------------------
+# CONVERSATION HANDLER
+# --------------------
+prevote_conv = ConversationHandler(
+    entry_points=[CommandHandler('prevote', prevote_start)],
+    states={
+        FULL_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, prevote_full_name)],
+        ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, prevote_address)],
+        MOBILE: [MessageHandler(filters.TEXT & ~filters.COMMAND, prevote_mobile)],
+        EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, prevote_email)],
+        MEMBERSHIP_STATUS: [CallbackQueryHandler(prevote_membership_status)],
+        ATTENDANCE: [CallbackQueryHandler(prevote_attendance)],
+        NOMINATION_DECISION: [CallbackQueryHandler(prevote_nomination_decision)],
+        NOMINEE_NAMES: [MessageHandler(filters.TEXT & ~filters.COMMAND, prevote_nominee_names)],
+        DECLARATION: [CallbackQueryHandler(prevote_declaration)]
+    },
+    fallbacks=[CommandHandler('cancel', lambda u,c: ConversationHandler.END)]
+)
 
 # ==========================
 # MAIN
@@ -286,6 +447,7 @@ def main():
     app.add_handler(CommandHandler("clearvotes", clear_votes))
     app.add_handler(CommandHandler("getid", get_id))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(prevote_conv)
 
     app.job_queue.run_repeating(reminder, interval=REMINDER_INTERVAL_SECONDS)
 
@@ -310,4 +472,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
