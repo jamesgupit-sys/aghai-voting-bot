@@ -165,10 +165,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await ask_question(query, "q1")
         return
-    # ================= PRE-VOTE =================
-if query.data == "prevote":
-    await prevote_start(update, context)  # Call the /prevote conversation
-    return
+   # ================= PRE-VOTE =================
+    if query.data == "prevote":
+        await prevote_start(update, context)
+        return
 
     # ================= ANSWERS =================
     q_key, answer = query.data.split("|")
@@ -482,6 +482,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
