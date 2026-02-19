@@ -451,29 +451,26 @@ async def prevote_attendance(update, context):
 async def prevote_nomination_decision(update, context):
     query = update.callback_query
     await query.answer()
-    data = query.data.strip().lower()  # normalize
+    data = query.data.strip().lower()
 
     if data == "no":
         context.user_data['nomination_yes_no'] = "No"
         context.user_data['nominee_names'] = ""
-        # Go straight to declaration prompt
-        return await prevote_declaration_prompt(update, context)
 
-    if data == "yes":
-        context.user_data['nomination_yes_no'] = "Yes"
-        official_names = ["Manny de Leon", "Annabelle Yong", "Conrad Alampay", "Ernie Manansala", "Elvie Guzman"]
-        await query.edit_message_text(
-            f"You may nominate any of the following:\n{', '.join(official_names)}\n\n"
-            "You may also enter additional nominee(s). Enter name(s), separated by commas if multiple:"
-        )
-        return NOMINEE_NAMES
+        # Show the declaration prompt
+        await prevote_declaration_prompt(update, context)
 
-    # Handle any unexpected input
+        # Return the next conversation state
+        return DECLARATION
+
+    # If Yes
+    context.user_data['nomination_yes_no'] = "Yes"
+    official_names = ["Manny de Leon", "Annabelle Yong", "Conrad Alampay", "Ernie Manansala", "Elvie Guzman"]
     await query.edit_message_text(
-        "⚠️ Invalid selection. Please choose Yes or No."
+        f"You may nominate any of the following:\n{', '.join(official_names)}\n\n"
+        "You may also enter additional nominee(s). Enter name(s), separated by commas if multiple:"
     )
-    return NOMINATION_DECISION
-
+    return NOMINEE_NAMES
 
 async def prevote_nominee_names(update, context):
     context.user_data['nominee_names'] = update.message.text
@@ -576,6 +573,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
