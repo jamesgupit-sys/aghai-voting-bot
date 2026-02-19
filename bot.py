@@ -136,6 +136,7 @@ if query.data == "begin":
          # 🔐 Require Pre-Voting Registration first
     if not has_submitted_prevote(user_id):
         keyboard = [[InlineKeyboardButton("📝 Complete Pre-Voting First", callback_data="prevote")]]
+       
         await query.edit_message_text(
             "⚠️ You must complete Pre-Voting Registration before you can vote.",
             reply_markup=InlineKeyboardMarkup(keyboard)
@@ -512,6 +513,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
