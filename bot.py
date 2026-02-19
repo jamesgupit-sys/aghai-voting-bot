@@ -130,10 +130,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return
 
-    # ================= BEGIN =================
-    
+# ================= BEGIN =================
+
 if query.data == "begin":
-         # 🔐 Require Pre-Voting Registration first
+    # 🔐 Require Pre-Voting Registration first
     if not has_submitted_prevote(user_id):
         keyboard = [[InlineKeyboardButton("📝 Complete Pre-Voting First", callback_data="prevote")]]
        
@@ -154,6 +154,7 @@ if query.data == "begin":
     context.user_data["voting_answers"] = {}
     await ask_question(query, "q1")
     return
+
 
     # ================= ANSWERS =================
     q_key, answer = query.data.split("|")
@@ -513,6 +514,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
