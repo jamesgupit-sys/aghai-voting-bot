@@ -546,6 +546,146 @@ prevote_conv = ConversationHandler(
     fallbacks=[CommandHandler('cancel', lambda u,c: ConversationHandler.END)]
 )
 
+
+# --------------------
+# PROXY SUBMISSION
+# --------------------
+# Conversation states
+PROXY_AGREE, PROXY_MEMBER_NAME, PROXY_MEMBER_LOT, PROXY_MEMBER_ADDRESS, PROXY_PROXY_NAME, PROXY_PROXY_LOT, PROXY_MOBILE, PROXY_SIGNATURE_DATE = range(8, 16)
+
+# Google Sheet for proxies
+proxy_sheet = gs_client.open("AGHAI_PreVoting_Records").worksheet("proxy_submissions")
+
+# --------------------
+# START PROXY SUBMISSION
+# --------------------
+async def proxy_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show Important Notes and ask member to agree."""
+    keyboard = [[InlineKeyboardButton("I Agree", callback_data="agree")],
+                [InlineKeyboardButton("Cancel", callback_data="cancel")]]
+    
+    notes = """⚠️ IMPORTANT NOTES:
+
+1. Only Members/Assignees in good standing may issue a valid proxy.
+2. One vote per lot (as provided under the By-Laws).
+3. Proxy must be submitted to the AGHAI Office at least ___ days before the meeting for verification.
+4. A Member may represent only one lot unless duly authorized for multiple lots under the By-Laws.
+
+Please read and agree to proceed.
+"""
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.message.reply_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    return PROXY_AGREE
+
+# --------------------
+# AGREEMENT HANDLER
+# --------------------
+async def proxy_agree(update, context):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "cancel":
+        keyboard = [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu")]]
+        await query.edit_message_text("Proxy submission cancelled.", reply_markup=InlineKeyboardMarkup(keyboard))
+        return ConversationHandler.END
+
+    # Proceed to member info
+    await query.edit_message_text("Enter your Full Name (Member/Assignee):")
+    return PROXY_MEMBER_NAME
+
+# --------------------
+# MEMBER INFO HANDLERS
+# --------------------
+async def proxy_member_name(update, context):
+    context.user_data['proxy_member_name'] = update.message.text
+    await update.message.reply_text("Enter your Lot Number:")
+    return PROXY_MEMBER_LOT
+
+async def proxy_member_lot(update, context):
+    context.user_data['proxy_member_lot'] = update.message.text
+    await update.message.reply_text("Enter your Address / Lot location:")
+    return PROXY_MEMBER_ADDRESS
+
+async def proxy_member_address(update, context):
+    context.user_data['proxy_member_address'] = update.message.text
+    await update.message.reply_text("Enter the Proxy Name (person who will vote on your behalf):")
+    return PROXY_PROXY_NAME
+
+async def proxy_proxy_name(update, context):
+    context.user_data['proxy_name'] = update.message.text
+    await update.message.reply_text("Enter Proxy Lot Number:")
+    return PROXY_PROXY_LOT
+
+async def proxy_proxy_lot(update, context):
+    context.user_data['proxy_lot'] = update.message.text
+    await update.message.reply_text("Enter your Mobile Number:")
+    return PROXY_MOBILE
+
+async def proxy_mobile(update, context):
+    context.user_data['proxy_mobile'] = update.message.text
+    await update.message.reply_text("Enter Date of Signature (YYYY-MM-DD):")
+    return PROXY_SIGNATURE_DATE
+
+async def proxy_signature_date(update, context):
+    context.user_data['proxy_date'] = update.message.text
+
+    # Save to Google Sheet
+    proxy_sheet.append_row([
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        update.effective_user.id,
+        context.user_data['proxy_member_name'],
+        context.user_data['proxy_member_lot'],
+        context.user_data['proxy_member_address'],
+        context.user_data['proxy_name'],
+        context.user_data['proxy_lot'],
+        context.user_data['proxy_mobile'],
+        context.user_data['proxy_date']
+    ])
+
+    # Confirmation message
+    keyboard = [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu")]]
+    await update.message.reply_text(
+        "✅ Proxy submission successful!\nYour submission has been recorded for admin review.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+    return ConversationHandler.END
+# --------------------
+# PROXY BACK TO MENU
+# --------------------
+async def proxy_back_to_menu(update, context):
+    query = update.callback_query
+    await query.answer()
+    await show_main_menu(query, context)
+    return
+
+
+# --------------------
+# PROXY CONVERSATION HANDLER
+# --------------------
+proxy_conv = ConversationHandler(
+    entry_points=[
+        CommandHandler("proxy", proxy_start),
+        CallbackQueryHandler(proxy_start, pattern="^proxy$")
+    ],
+    states={
+        PROXY_AGREE: [CallbackQueryHandler(proxy_agree)],
+        PROXY_MEMBER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_member_name)],
+        PROXY_MEMBER_LOT: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_member_lot)],
+        PROXY_MEMBER_ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_member_address)],
+        PROXY_PROXY_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_proxy_name)],
+        PROXY_PROXY_LOT: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_proxy_lot)],
+        PROXY_MOBILE: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_mobile)],
+        PROXY_SIGNATURE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_signature_date)],
+    },
+    fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)]
+)
+
+
 # ==========================
 # MAIN
 # ==========================
@@ -560,6 +700,7 @@ def main():
     app.add_handler(CommandHandler("clearvotes", clear_votes))
     app.add_handler(CommandHandler("getid", get_id))
     app.add_handler(prevote_conv)
+    app.add_handler(proxy_conv) 
     app.add_handler(CallbackQueryHandler(button_handler, pattern="^(begin|menu|revote_button|prevote)$"))
 
     app.job_queue.run_repeating(reminder, interval=REMINDER_INTERVAL_SECONDS)
@@ -585,6 +726,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
