@@ -580,10 +580,11 @@ async def proxy_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Please read and agree to proceed.
 """
     if update.callback_query:
-        await update.callback_query.answer()
-        await update.callback_query.message.reply_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
-    else:
-        await update.message.reply_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.callback_query.answer()
+    await update.callback_query.message.edit_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
+else:
+    await update.message.reply_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
+
 
     return PROXY_AGREE
 
@@ -679,7 +680,7 @@ proxy_conv = ConversationHandler(
         CallbackQueryHandler(proxy_start, pattern="^proxy$")
     ],
     states={
-        PROXY_AGREE: [CallbackQueryHandler(proxy_agree)],
+        PROXY_AGREE: [CallbackQueryHandler(proxy_agree, pattern="^(agree|cancel)$")],
         PROXY_MEMBER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_member_name)],
         PROXY_MEMBER_LOT: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_member_lot)],
         PROXY_MEMBER_ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, proxy_member_address)],
@@ -732,6 +733,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
