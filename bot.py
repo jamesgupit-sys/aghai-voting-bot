@@ -21,8 +21,6 @@ TOKEN = os.getenv("BOT_TOKEN")
 
 ADMIN_IDS = [8324041197, 1037677076]
 
-DATA_FILE = "votes.json"
-
 VOTING_OPEN = True
 REMINDER_INTERVAL_SECONDS = 86400  # Once per day
 
@@ -73,19 +71,6 @@ OPTIONS = {
     "q4": ["4a", "4b"],
 }
 
-# ==========================
-# STORAGE
-# ==========================
-
-def load_votes():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
-def save_votes(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
 
 # ==========================
 # START
@@ -124,7 +109,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = str(query.from_user.id)
-    votes = load_votes()
 
     # Auto deadline check (March 1, 2026)
     if datetime.now() >= datetime(2026, 3, 1, 0, 0):
@@ -133,56 +117,74 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not VOTING_OPEN:
         await query.edit_message_text("Voting is currently CLOSED.")
         return
-
+        
     # ================= REVOTE BUTTON =================
-    if query.data == "revote_button":
-        if user_id in votes:
-            del votes[user_id]
-            save_votes(votes)
 
-        keyboard = [[InlineKeyboardButton("🗳 Begin Voting Again", callback_data="begin")]]
+if query.data == "revote_button":
+
+    if has_voted(user_id):
+        clear_user_vote(user_id)
+
+    keyboard = [[InlineKeyboardButton("🗳 Begin Voting Again", callback_data="begin")]]
+    await query.edit_message_text(
+        "Your previous vote has been cleared.\n\nClick below to vote again.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return
+
+    # ================= BEGIN =================
+    
+if query.data == "begin":
+         # 🔐 Require Pre-Voting Registration first
+    if not has_submitted_prevote(user_id):
+        keyboard = [[InlineKeyboardButton("📝 Complete Pre-Voting First", callback_data="prevote")]]
         await query.edit_message_text(
-            "Your previous vote has been cleared.\n\nClick below to vote again.",
+            "⚠️ You must complete Pre-Voting Registration before you can vote.",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
 
-    # ================= BEGIN =================
-    if query.data == "begin":
-        if user_id in votes and votes[user_id]["answers"]:
-            keyboard = [[InlineKeyboardButton("🔁 Change My Vote", callback_data="revote_button")]]
-            await query.edit_message_text(
-                "⚠️ You have already voted.",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-            return
-
-        votes[user_id] = {
-            "name": query.from_user.full_name,
-            "answers": {}
-        }
-        save_votes(votes)
-
-        await ask_question(query, "q1")
+    if has_voted(user_id):
+        keyboard = [[InlineKeyboardButton("🔁 Change My Vote", callback_data="revote_button")]]
+        await query.edit_message_text(
+            "⚠️ You have already voted.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         return
+
+    context.user_data["voting_answers"] = {}
+    await ask_question(query, "q1")
+    return
 
     # ================= ANSWERS =================
     q_key, answer = query.data.split("|")
-
-    votes[user_id]["answers"][q_key] = answer
-    save_votes(votes)
-
+    
+    context.user_data["voting_answers"][q_key] = answer
+    
     next_q = get_next_question(q_key)
 
     if next_q:
         await ask_question(query, next_q)
     else:
-        keyboard = [[InlineKeyboardButton("🔁 Change My Vote", callback_data="revote_button")]]
-        await query.edit_message_text(
-            "✅ Thank you. Your vote has been recorded.\n\n"
-            "If you change your mind before the deadline, click below:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        # ✅ Save to Google Sheet
+    answers = context.user_data["voting_answers"]
+
+    voting_sheet.append_row([
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        user_id,
+        query.from_user.full_name,
+        answers.get("q1", ""),
+        answers.get("q2", ""),
+        answers.get("q3", ""),
+        answers.get("q4", "")
+    ])
+
+    keyboard = [[InlineKeyboardButton("🔁 Change My Vote", callback_data="revote_button")]]
+
+    await query.edit_message_text(
+        "✅ Thank you. Your vote has been recorded securely.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 # ==========================
 # ASK QUESTION
@@ -217,12 +219,19 @@ async def results(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id not in ADMIN_IDS:
         return
 
-    votes = load_votes()
+    records = voting_sheet.get_all_records()
+
     summary = {q: {opt: 0 for opt in OPTIONS[q]} for q in QUESTIONS}
 
-    for voter in votes.values():
-        for q, ans in voter["answers"].items():
-            summary[q][ans] += 1
+    for row in records:
+        if row.get("Q1") in summary["q1"]:
+            summary["q1"][row["Q1"]] += 1
+        if row.get("Q2") in summary["q2"]:
+            summary["q2"][row["Q2"]] += 1
+        if row.get("Q3") in summary["q3"]:
+            summary["q3"][row["Q3"]] += 1
+        if row.get("Q4") in summary["q4"]:
+            summary["q4"][row["Q4"]] += 1
 
     message = "📊 VOTING SUMMARY\n\n"
 
@@ -233,14 +242,15 @@ async def results(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message += "\n"
 
     message += "👥 WHO VOTED:\n\n"
-    
-    for voter in votes.values():
-        message += f"{voter['name']}\n"
-        for q, ans in voter["answers"].items():
-            message += f"  {q}: {ans}\n"
+
+    for row in records:
+        message += f"{row['Name']}\n"
+        message += f"  q1: {row.get('Q1')}\n"
+        message += f"  q2: {row.get('Q2')}\n"
+        message += f"  q3: {row.get('Q3')}\n"
+        message += f"  q4: {row.get('Q4')}\n\n"
 
     await update.message.reply_text(message)
-
 # ==========================
 # ADMIN COMMANDS
 # ==========================
@@ -287,6 +297,7 @@ scope = ["https://spreadsheets.google.com/feeds",
 creds = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
 gs_client = gspread.authorize(creds)
 prevote_sheet = gs_client.open("AGHAI_PreVoting_Records").worksheet("pre_voting_registration")
+voting_sheet = gs_client.open("AGHAI_PreVoting_Records").worksheet("voting_records")
 # --------------------
 # CONVERSATION STATES
 # --------------------
@@ -302,6 +313,20 @@ def has_submitted_prevote(user_id: int):
             return True
     return False
 
+def has_voted(user_id: int):
+    records = voting_sheet.get_all_records()
+    for row in records:
+        if str(row.get("Telegram ID")) == str(user_id):
+            return True
+    return False
+
+
+def clear_user_vote(user_id: int):
+    records = voting_sheet.get_all_records()
+    for idx, row in enumerate(records, start=2):  # row 2 because header is row 1
+        if str(row.get("Telegram ID")) == str(user_id):
+            voting_sheet.delete_rows(idx)
+            return
 # --------------------
 # /prevote START
 # --------------------
@@ -491,6 +516,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
