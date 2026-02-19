@@ -144,7 +144,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not VOTING_OPEN:
         await query.edit_message_text("Voting is currently CLOSED.")
         return
-
+# ================= BACK TO MENU =================
+    if query.data == "menu":
+        await show_main_menu(query, context)
+        return
     # ================= BEGIN BUTTON =================
     if query.data == "begin":
         await handle_begin(query, user_id, context)
@@ -198,11 +201,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         return
-
-# ================= BACK TO MENU =================
-if query.data == "menu":
-    await show_main_menu(query, context)
-    return
 
 # ================= HANDLE BEGIN =================
 
@@ -558,6 +556,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
