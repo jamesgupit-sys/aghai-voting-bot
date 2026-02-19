@@ -71,7 +71,6 @@ OPTIONS = {
     "q4": ["4a", "4b"],
 }
 
-
 # ==========================
 # START
 # ==========================
@@ -98,6 +97,35 @@ Instructions:
 """,
         reply_markup=reply_markup
     )
+
+# ==========================
+# SHOW MAIN MENU
+# ==========================
+
+async def show_main_menu(query_or_update, context):
+    user = query_or_update.from_user if hasattr(query_or_update, "from_user") else query_or_update.effective_user
+
+    keyboard = [
+        [InlineKeyboardButton("🗳 Begin Voting", callback_data="begin")],
+        [InlineKeyboardButton("📝 Pre-Voting Registration", callback_data="prevote")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    text = f"""Welcome {user.first_name} 👋
+
+🗳 AGHAI Official Voting Portal
+
+Instructions:
+• Tap "Begin Voting"
+• You may vote only once
+• You may change your vote before deadline
+• Only admins can view results
+"""
+
+    if hasattr(query_or_update, "callback_query"):
+        await query_or_update.callback_query.edit_message_text(text, reply_markup=reply_markup)
+    else:
+        await query_or_update.message.reply_text(text, reply_markup=reply_markup)
 
 # ==========================
 # BUTTON HANDLER
@@ -170,6 +198,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         return
+
+# ================= BACK TO MENU =================
+if query.data == "menu":
+    await show_main_menu(query, context)
+    return
 
 # ================= HANDLE BEGIN =================
 
@@ -342,28 +375,19 @@ async def prevote_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     if has_submitted_prevote(user_id):
-        if update.callback_query:
-            await update.callback_query.answer()
-            await update.callback_query.message.reply_text(
-                "⚠️ You have already submitted your Pre-Voting Registration."
-            )
-        else:
-            await update.message.reply_text(
-                "⚠️ You have already submitted your Pre-Voting Registration."
-            )
-        return ConversationHandler.END
-
+    keyboard = [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu")]]
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.message.reply_text(
-            "Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:"
+        await update.callback_query.message.edit_text(
+            "⚠️ You have already submitted your Pre-Voting Registration.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
         await update.message.reply_text(
-            "Welcome to AGHAI Pre-Voting Registration.\n\nPlease enter your Full Name:"
+            "⚠️ You have already submitted your Pre-Voting Registration.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-
-    return FULL_NAME
+    return ConversationHandler.END
 
 # --------------------
 # CONVERSATION HANDLERS
@@ -418,10 +442,14 @@ async def prevote_attendance(update, context):
 async def prevote_nomination_decision(update, context):
     query = update.callback_query
     await query.answer()
-    if query.data == "No":
+    data = query.data.strip().lower()  # normalize
+
+    if data == "no":
         context.user_data['nomination_yes_no'] = "No"
         context.user_data['nominee_names'] = ""
         return await prevote_declaration_prompt(update, context)
+
+    # If Yes
     context.user_data['nomination_yes_no'] = "Yes"
     official_names = ["Manny de Leon", "Annabelle Yong", "Conrad Alampay", "Ernie Manansala", "Elvie Guzman"]
     await query.edit_message_text(
@@ -447,6 +475,7 @@ async def prevote_declaration(update, context):
     await query.answer()
     context.user_data['declaration_confirmed'] = "YES"
     user_id = update.effective_user.id
+
     prevote_sheet.append_row([
         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         user_id,
@@ -460,7 +489,13 @@ async def prevote_declaration(update, context):
         context.user_data.get('nominee_names', ""),
         context.user_data['declaration_confirmed']
     ])
-    await query.edit_message_text("✅ Submission Successful!\nThank you for completing your Pre-Voting Registration.")
+
+    # Show success message with "Back to Menu" button
+    keyboard = [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu")]]
+    await query.edit_message_text(
+        "✅ Submission Successful!\nThank you for completing your Pre-Voting Registration.",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
     return ConversationHandler.END
 
 # --------------------
@@ -524,6 +559,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
