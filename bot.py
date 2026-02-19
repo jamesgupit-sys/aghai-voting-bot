@@ -107,7 +107,8 @@ async def show_main_menu(query_or_update, context):
 
     keyboard = [
         [InlineKeyboardButton("🗳 Begin Voting", callback_data="begin")],
-        [InlineKeyboardButton("📝 Pre-Voting Registration", callback_data="prevote")]
+        [InlineKeyboardButton("📝 Pre-Voting Registration", callback_data="prevote")],
+        [InlineKeyboardButton("📄 Proxy Submission", callback_data="proxy")]   # <-- new button
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -120,12 +121,14 @@ Instructions:
 • You may vote only once
 • You may change your vote before deadline
 • Only admins can view results
+• You may submit a Proxy if you cannot attend
 """
 
     if hasattr(query_or_update, "callback_query"):
         await query_or_update.callback_query.edit_message_text(text, reply_markup=reply_markup)
     else:
         await query_or_update.message.reply_text(text, reply_markup=reply_markup)
+
 
 # ==========================
 # BUTTON HANDLER
@@ -156,7 +159,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "prevote":
     # Trigger conversation start manually
         return await prevote_start(update, context)
-
+# ================= PROXY BUTTON =================
+    if query.data == "proxy":
+        return await proxy_start(update, context) 
     # ================= REVOTE BUTTON =================
     if query.data == "revote_button":
         if has_voted(user_id):
@@ -726,6 +731,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
