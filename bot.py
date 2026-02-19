@@ -708,7 +708,7 @@ def main():
     app.add_handler(CommandHandler("getid", get_id))
     app.add_handler(prevote_conv)
     app.add_handler(proxy_conv) 
-    app.add_handler(CallbackQueryHandler(button_handler, pattern="^(begin|menu|revote_button|prevote|proxy)$"))
+    app.add_handler(CallbackQueryHandler(button_handler))
 
     app.job_queue.run_repeating(reminder, interval=REMINDER_INTERVAL_SECONDS)
 
@@ -733,6 +733,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
