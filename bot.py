@@ -116,7 +116,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not VOTING_OPEN:
         await query.edit_message_text("Voting is currently CLOSED.")
         return
-        
+
+    # ================= BEGIN BUTTON =================
+    if query.data == "begin":
+        await handle_begin(query, user_id, context)
+        return
     # ================= REVOTE BUTTON =================
     if query.data == "revote_button":
         if has_voted(user_id):
@@ -128,17 +132,46 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
-# ================= BEGIN BUTTON =================
-    if query.data == "begin":
-        await handle_begin(query, user_id, context)
-        return
 
 # ================= PRE-VOTE =================
     if query.data == "prevote":
         await prevote_start(update, context)
         return
 
-# ================= BEGIN =================
+# ================= VOTING ANSWERS =================
+    # Handles q1|APPROVE, q2|REJECT, etc.
+    if "|" in query.data:
+        q_key, answer = query.data.split("|")
+
+        if "voting_answers" not in context.user_data:
+            context.user_data["voting_answers"] = {}
+
+        context.user_data["voting_answers"][q_key] = answer
+
+        next_q = get_next_question(q_key)
+        if next_q:
+            await ask_question(query, next_q)
+        else:
+            # Save votes to Google Sheet
+            answers = context.user_data["voting_answers"]
+            voting_sheet.append_row([
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                user_id,
+                query.from_user.full_name,
+                answers.get("q1", ""),
+                answers.get("q2", ""),
+                answers.get("q3", ""),
+                answers.get("q4", "")
+            ])
+
+            keyboard = [[InlineKeyboardButton("🔁 Change My Vote", callback_data="revote_button")]]
+            await query.edit_message_text(
+                "✅ Thank you. Your vote has been recorded securely.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        return
+
+# ================= HANDLE BEGIN =================
 
 async def handle_begin(query, user_id, context):
     # 🔐 Require Pre-Voting Registration first
@@ -160,37 +193,6 @@ async def handle_begin(query, user_id, context):
 
     context.user_data["voting_answers"] = {}
     await ask_question(query, "q1")
-
-    # ================= ANSWERS =================
-    if "|" in query.data:  # e.g., q1|APPROVE
-        q_key, answer = query.data.split("|")
-        if "voting_answers" not in context.user_data:
-            context.user_data["voting_answers"] = {}
-
-        context.user_data["voting_answers"][q_key] = answer
-
-        next_q = get_next_question(q_key)
-        if next_q:
-            await ask_question(query, next_q)
-        else:
-            # Save to Google Sheet
-            answers = context.user_data["voting_answers"]
-            voting_sheet.append_row([
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                user_id,
-                query.from_user.full_name,
-                answers.get("q1", ""),
-                answers.get("q2", ""),
-                answers.get("q3", ""),
-                answers.get("q4", "")
-            ])
-
-            keyboard = [[InlineKeyboardButton("🔁 Change My Vote", callback_data="revote_button")]]
-            await query.edit_message_text(
-                "✅ Thank you. Your vote has been recorded securely.",
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        return
 
 # ==========================
 # ASK QUESTION
@@ -522,6 +524,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
