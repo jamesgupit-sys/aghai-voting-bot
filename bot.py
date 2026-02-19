@@ -120,9 +120,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     # ================= REVOTE BUTTON =================
     if query.data == "revote_button":
-
-    if has_voted(user_id):
-        clear_user_vote(user_id)
+        if has_voted(user_id):
+            clear_user_vote(user_id)
 
     keyboard = [[InlineKeyboardButton("🗳 Begin Voting Again", callback_data="begin")]]
     await query.edit_message_text(
@@ -513,6 +512,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
