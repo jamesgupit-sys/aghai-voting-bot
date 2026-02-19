@@ -119,8 +119,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     # ================= REVOTE BUTTON =================
-
-if query.data == "revote_button":
+    if query.data == "revote_button":
 
     if has_voted(user_id):
         clear_user_vote(user_id)
@@ -514,6 +513,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
