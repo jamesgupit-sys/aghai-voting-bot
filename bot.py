@@ -164,11 +164,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-# ================= PRE-VOTE =================
-    if query.data == "prevote":
-        await prevote_start(update, context)
-        return
-
 # ================= VOTING ANSWERS =================
     # Handles q1|APPROVE, q2|REJECT, etc.
     if "|" in query.data:
@@ -556,6 +551,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
