@@ -161,8 +161,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Trigger conversation start manually
         return await prevote_start(update, context)
 # ================= PROXY BUTTON =================
-    if query.data == "proxy":
-        return await proxy_start(update, context) 
+    
     # ================= REVOTE BUTTON =================
     if query.data == "revote_button":
         if has_voted(user_id):
@@ -566,19 +565,37 @@ proxy_sheet = gs_client.open("AGHAI_PreVoting_Records").worksheet("proxy_submiss
 # START PROXY SUBMISSION
 # --------------------
 async def proxy_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Show Important Notes and ask member to agree."""
+    user_id = update.effective_user.id
+
+    # Check if already submitted
+    records = proxy_sheet.get_all_records()
+    for row in records:
+        if str(row.get("Telegram ID")) == str(user_id):
+            keyboard = [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu")]]
+            if update.callback_query:
+                await update.callback_query.answer()
+                await update.callback_query.message.edit_text(
+                    "⚠️ You have already submitted a Proxy.",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            else:
+                await update.message.reply_text(
+                    "⚠️ You have already submitted a Proxy.",
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            return ConversationHandler.END
+
+    # …rest of your notes code
     keyboard = [[InlineKeyboardButton("I Agree", callback_data="agree")],
                 [InlineKeyboardButton("Cancel", callback_data="cancel")]]
-    
+
     notes = """⚠️ IMPORTANT NOTES:
-
 1. Only Members/Assignees in good standing may issue a valid proxy.
-2. One vote per lot (as provided under the By-Laws).
-3. Proxy must be submitted to the AGHAI Office at least ___ days before the meeting for verification.
-4. A Member may represent only one lot unless duly authorized for multiple lots under the By-Laws.
+2. One vote per lot.
+3. Proxy must be submitted to the AGHAI Office at least ___ days before the meeting.
+4. A Member may represent only one lot unless duly authorized.
+Please read and agree to proceed."""
 
-Please read and agree to proceed.
-"""
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.message.edit_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
@@ -739,6 +756,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
