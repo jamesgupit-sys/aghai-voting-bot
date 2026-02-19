@@ -373,14 +373,13 @@ def clear_user_vote(user_id: int):
 # --------------------
 async def prevote_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-
     if has_submitted_prevote(user_id):
-    keyboard = [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu")]]
-    if update.callback_query:
-        await update.callback_query.answer()
-        await update.callback_query.message.edit_text(
-            "⚠️ You have already submitted your Pre-Voting Registration.",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+        keyboard = [[InlineKeyboardButton("🏠 Back to Menu", callback_data="menu")]]
+        if update.callback_query:
+            await update.callback_query.answer()
+            await update.callback_query.message.edit_text(
+                "⚠️ You have already submitted your Pre-Voting Registration.",
+                reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
         await update.message.reply_text(
@@ -559,6 +558,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
