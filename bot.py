@@ -442,8 +442,8 @@ async def prevote_attendance(update, context):
     await query.answer()
     context.user_data['attendance'] = query.data
     keyboard = [
-        [InlineKeyboardButton("Yes", callback_data="Yes")],
-        [InlineKeyboardButton("No", callback_data="No")]
+        [InlineKeyboardButton("Yes", callback_data="nom_yes")],
+        [InlineKeyboardButton("No", callback_data="nom_no")]
     ]
     await query.edit_message_text("Do you wish to nominate members for COMELEC?", reply_markup=InlineKeyboardMarkup(keyboard))
     return NOMINATION_DECISION
@@ -451,26 +451,33 @@ async def prevote_attendance(update, context):
 async def prevote_nomination_decision(update, context):
     query = update.callback_query
     await query.answer()
-    data = query.data.strip().lower()
 
-    if data == "no":
+    if query.data == "nom_no":
         context.user_data['nomination_yes_no'] = "No"
         context.user_data['nominee_names'] = ""
 
-        # Show the declaration prompt
         await prevote_declaration_prompt(update, context)
-
-        # Return the next conversation state
         return DECLARATION
 
-    # If Yes
-    context.user_data['nomination_yes_no'] = "Yes"
-    official_names = ["Manny de Leon", "Annabelle Yong", "Conrad Alampay", "Ernie Manansala", "Elvie Guzman"]
-    await query.edit_message_text(
-        f"You may nominate any of the following:\n{', '.join(official_names)}\n\n"
-        "You may also enter additional nominee(s). Enter name(s), separated by commas if multiple:"
-    )
-    return NOMINEE_NAMES
+    if query.data == "nom_yes":
+        context.user_data['nomination_yes_no'] = "Yes"
+
+        official_names = [
+            "Manny de Leon",
+            "Annabelle Yong",
+            "Conrad Alampay",
+            "Ernie Manansala",
+            "Elvie Guzman"
+        ]
+
+        await query.edit_message_text(
+            f"You may nominate any of the following:\n"
+            f"{', '.join(official_names)}\n\n"
+            "Enter name(s), separated by commas:"
+        )
+
+        return NOMINEE_NAMES
+
 
 async def prevote_nominee_names(update, context):
     context.user_data['nominee_names'] = update.message.text
@@ -573,6 +580,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
