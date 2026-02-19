@@ -580,11 +580,10 @@ async def proxy_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Please read and agree to proceed.
 """
     if update.callback_query:
-    await update.callback_query.answer()
-    await update.callback_query.message.edit_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
-else:
-    await update.message.reply_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
-
+        await update.callback_query.answer()
+        await update.callback_query.message.edit_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.message.reply_text(notes, reply_markup=InlineKeyboardMarkup(keyboard))
 
     return PROXY_AGREE
 
@@ -733,6 +732,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
