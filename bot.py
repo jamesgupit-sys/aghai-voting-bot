@@ -166,17 +166,15 @@ if query.data == "begin":
     if next_q:
         await ask_question(query, next_q)
     else:
-        # ✅ Save to Google Sheet
-    answers = context.user_data["voting_answers"]
-
-    voting_sheet.append_row([
-        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        user_id,
-        query.from_user.full_name,
-        answers.get("q1", ""),
-        answers.get("q2", ""),
-        answers.get("q3", ""),
-        answers.get("q4", "")
+        answers = context.user_data["voting_answers"]
+        voting_sheet.append_row([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            user_id,
+            query.from_user.full_name,
+            answers.get("q1", ""),
+            answers.get("q2", ""),
+            answers.get("q3", ""),
+            answers.get("q4", "")
     ])
 
     keyboard = [[InlineKeyboardButton("🔁 Change My Vote", callback_data="revote_button")]]
@@ -516,6 +514,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
