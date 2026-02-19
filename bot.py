@@ -153,9 +153,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_begin(query, user_id, context)
         return
 # ================= PREVOTE BUTTON =================
-    if query.data == "prevote":
+if query.data == "prevote":
     # Trigger conversation start manually
     return await prevote_start(update, context)
+
     # ================= REVOTE BUTTON =================
     if query.data == "revote_button":
         if has_voted(user_id):
@@ -567,6 +568,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
