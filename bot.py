@@ -728,7 +728,7 @@ def main():
     app.add_handler(
         CallbackQueryHandler(
             button_handler,
-            pattern="^(begin|menu|revote_button|prevote|proxy|q[1-4]\\|.*)$"
+            pattern="^(begin|menu|revote_button|prevote|q[1-4]\\|.*)$"
         )
     )
 
@@ -756,6 +756,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
