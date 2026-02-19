@@ -485,10 +485,15 @@ async def prevote_nominee_names(update, context):
 
 async def prevote_declaration_prompt(update, context):
     keyboard = [[InlineKeyboardButton("I Agree and Confirm", callback_data="Agree")]]
-    await update.message.reply_text(
-        "“I certify that I am a Member/Assignee in good standing of AGHAI and that the above information is true and correct.”",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    text = "“I certify that I am a Member/Assignee in good standing of AGHAI and that the above information is true and correct.”"
+
+    if update.callback_query:
+        await update.callback_query.message.reply_text(text, reply_markup=reply_markup)
+    else:
+        await update.message.reply_text(text, reply_markup=reply_markup)
+
     return DECLARATION
 
 async def prevote_declaration(update, context):
@@ -580,6 +585,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
