@@ -80,7 +80,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [InlineKeyboardButton("🗳 Begin Voting", callback_data="begin")],
-        [InlineKeyboardButton("📝 Pre-Voting Registration", callback_data="prevote")]
+        [InlineKeyboardButton("📝 Pre-Voting Registration", callback_data="prevote")],
         [InlineKeyboardButton("📄 Proxy Submission", callback_data="proxy")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -732,6 +732,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
