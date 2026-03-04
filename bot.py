@@ -733,8 +733,6 @@ def main():
     )
 
 
-    app.job_queue.run_repeating(reminder, interval=REMINDER_INTERVAL_SECONDS)
-
     # Web server for Render
     import threading
     from flask import Flask
@@ -756,6 +754,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
